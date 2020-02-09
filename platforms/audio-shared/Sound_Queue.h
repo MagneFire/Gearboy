@@ -1,50 +1,61 @@
+// VisualBoyAdvance - Nintendo Gameboy/GameboyAdvance (TM) emulator.
+// Copyright (C) 2015 VBA-M development team
 
-// Simple sound queue for synchronous sound handling in SDL
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2, or(at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-// Copyright (C) 2005 Shay Green. MIT license.
+#ifndef __VBA_SOUND_SDL_H__
+#define __VBA_SOUND_SDL_H__
 
-#ifndef SOUND_QUEUE_H
-#define SOUND_QUEUE_H
+#include "ringbuffer.h"
+#include "SoundDriver.h"
 
-#include <SDL/SDL.h>
+#include "SDL.h"
 
-// Simple SDL sound wrapper that has a synchronous interface
-class Sound_Queue {
+class Sound_Queue : public SoundDriver {
 public:
-	Sound_Queue();
-	~Sound_Queue();
+        Sound_Queue();
+        virtual ~Sound_Queue();
 
-	// Initialize with specified sample rate and channel count.
-	// Returns NULL on success, otherwise error string.
-	const char* start( long sample_rate, int chan_count = 1 );
+        virtual bool init(long sampleRate);
+        virtual void pause();
+        virtual void reset();
+        virtual void resume();
+        virtual void write(uint16_t *finalWave, int length);
+        virtual void setThrottle(unsigned short throttle_);
 
-	// Number of samples in buffer waiting to be played
-	int sample_count() const;
-
-	// Write samples to buffer and block until enough space is available
-	typedef short sample_t;
-	void write( const sample_t*, int count );
-
-	// Pointer to samples currently playing (for showing waveform display)
-	sample_t const* currently_playing() const { return currently_playing_; }
-
-	// Stop audio output
-	void stop();
+protected:
+        static void soundCallback(void* data, uint8_t* stream, int length);
+        virtual void read(uint16_t* stream, int length);
+        virtual bool should_wait();
+        virtual std::size_t buffer_size();
+        virtual void deinit();
 
 private:
-	enum { buf_size = 2048 };
-	enum { buf_count = 3 };
-	sample_t* volatile bufs;
-	SDL_sem* volatile free_sem;
-	sample_t* volatile currently_playing_;
-	int volatile read_buf;
-	int write_buf;
-	int write_pos;
-	bool sound_open;
+        RingBuffer<uint16_t> samples_buf;
 
-	sample_t* buf( int index );
-	void fill_buffer( Uint8*, int );
-	static void fill_buffer_( void*, Uint8*, int );
+        SDL_mutex* mutex;
+        SDL_sem* data_available;
+        SDL_sem* data_read;
+        SDL_AudioSpec audio_spec;
+
+        unsigned short current_rate;
+
+        bool initialized = false;
+
+        // Defines what delay in seconds we keep in the sound buffer
+        static const double buftime;
 };
 
-#endif
+#endif // __VBA_SOUND_SDL_H__

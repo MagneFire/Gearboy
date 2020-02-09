@@ -1,155 +1,204 @@
+// VisualBoyAdvance - Nintendo Gameboy/GameboyAdvance (TM) emulator.
+// Copyright (C) 2015 VBA-M development team
 
-// Gb_Snd_Emu 0.1.4. http://www.slack.net/~ant/
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2, or(at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+#include <cmath>
+#include <iostream>
+#include <SDL_events.h>
 #include "Sound_Queue.h"
+//#include "ConfigManager.h"
+//#include "../gba/Globals.h"
+//#include "../gba/Sound.h"
 
-#include <assert.h>
-#include <string.h>
-#include <string>
+//extern int emulating;
 
-/* Copyright (C) 2005 by Shay Green. Permission is hereby granted, free of
-charge, to any person obtaining a copy of this software module and associated
-documentation files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use, copy, modify,
-merge, publish, distribute, sublicense, and/or sell copies of the Software, and
-to permit persons to whom the Software is furnished to do so, subject to the
-following conditions: The above copyright notice and this permission notice
-shall be included in all copies or substantial portions of the Software. THE
-SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
+// Hold up to 300 ms of data in the ring buffer
+const double Sound_Queue::buftime = 0.300;
 
-// Return current SDL_GetError() string, or str if SDL didn't have a string
-static const char* sdl_error( const char* str )
-{
-	const char* sdl_str = SDL_GetError();
-	if ( sdl_str && *sdl_str )
-		str = sdl_str;
-	return str;
+Sound_Queue::Sound_Queue():
+    samples_buf(0),
+    initialized(false)
+{}
+
+void Sound_Queue::soundCallback(void* data, uint8_t* stream, int len) {
+    reinterpret_cast<Sound_Queue*>(data)->read(reinterpret_cast<uint16_t*>(stream), len);
 }
 
-Sound_Queue::Sound_Queue()
-{
-	bufs = NULL;
-	free_sem = NULL;
-	sound_open = false;
-
-	SDL_Init(SDL_INIT_AUDIO);
-
-	atexit(SDL_Quit);
+bool Sound_Queue::should_wait() {
+    return current_rate;
 }
 
-Sound_Queue::~Sound_Queue()
-{
-	stop();
+std::size_t Sound_Queue::buffer_size() {
+    SDL_LockMutex(mutex);
+    std::size_t size = samples_buf.used();
+    SDL_UnlockMutex(mutex);
+
+    return size;
 }
 
-const char* Sound_Queue::start( long sample_rate, int chan_count )
-{
-	assert( !bufs ); // can only be initialized once
+void Sound_Queue::read(uint16_t* stream, int length) {
+    if (length <= 0)
+        return;
 
-	write_buf = 0;
-	write_pos = 0;
-	read_buf = 0;
+    SDL_memset(stream, audio_spec.silence, length);
 
-	bufs = new sample_t [(long) buf_size * buf_count];
-	if ( !bufs )
-		return "Out of memory";
-	currently_playing_ = bufs;
+    // if not initialzed, paused or shutting down, do nothing
+    if (!initialized)
+        return;
 
-	free_sem = SDL_CreateSemaphore( buf_count - 1 );
-	if ( !free_sem )
-		return sdl_error( "Couldn't create semaphore" );
+    if (!buffer_size()) {
+        if (should_wait())
+            SDL_SemWait(data_available);
+        else
+            return;
+    }
 
-	SDL_AudioSpec as;
-	as.freq = (int)sample_rate;
-	as.format = AUDIO_S16SYS;
-	as.channels = chan_count;
-	as.silence = 0;
-	as.samples = buf_size / chan_count;
-	as.size = 0;
-	as.callback = fill_buffer_;
-	as.userdata = this;
-	if ( SDL_OpenAudio( &as, NULL ) < 0 )
-		return sdl_error( "Couldn't open SDL audio" );
+    SDL_LockMutex(mutex);
+
+    samples_buf.read(stream, std::min((std::size_t)(length / 2), samples_buf.used()));
+
+    SDL_UnlockMutex(mutex);
+
+    SDL_SemPost(data_read);
+}
+
+void Sound_Queue::write(uint16_t * finalWave, int length) {
+    if (!initialized)
+        return;
+
+    SDL_LockMutex(mutex);
+
+    //if (SDL_GetAudioDeviceStatus(sound_device) != SDL_AUDIO_PLAYING)
+	//SDL_PauseAudioDevice(sound_device, 0);
 	SDL_PauseAudio( false );
-	sound_open = true;
 
-	return NULL;
-}
+    unsigned int samples = length / 4;
+    std::size_t avail;
 
-void Sound_Queue::stop()
-{
-	if ( sound_open )
-	{
-		sound_open = false;
-		SDL_PauseAudio( true );
-		SDL_CloseAudio();
-	}
+    while ((avail = samples_buf.avail() / 2) < samples) {
+	samples_buf.write(finalWave, avail * 2);
 
-	if ( free_sem )
-	{
-		SDL_DestroySemaphore( free_sem );
-		free_sem = NULL;
-	}
+	finalWave += avail * 2;
+	samples -= avail;
 
-	delete [] bufs;
-	bufs = NULL;
-}
+	SDL_UnlockMutex(mutex);
 
-int Sound_Queue::sample_count() const
-{
-	int buf_free = SDL_SemValue( free_sem ) * buf_size + (buf_size - write_pos);
-	return buf_size * buf_count - buf_free;
-}
+	SDL_SemPost(data_available);
 
-inline Sound_Queue::sample_t* Sound_Queue::buf( int index )
-{
-	assert( (unsigned) index < buf_count );
-	return bufs + (long) index * buf_size;
-}
-
-void Sound_Queue::write( const sample_t* in, int count )
-{
-	while ( count )
-	{
-		int n = buf_size - write_pos;
-		if ( n > count )
-			n = count;
-
-		memcpy( buf( write_buf ) + write_pos, in, n * sizeof (sample_t) );
-		in += n;
-		write_pos += n;
-		count -= n;
-
-		if ( write_pos >= buf_size )
-		{
-			write_pos = 0;
-			write_buf = (write_buf + 1) % buf_count;
-			SDL_SemWait( free_sem );
-		}
-	}
-}
-
-void Sound_Queue::fill_buffer( Uint8* out, int count )
-{
-	if ( SDL_SemValue( free_sem ) < buf_count - 1 )
-	{
-		currently_playing_ = buf( read_buf );
-		memcpy( out, buf( read_buf ), count );
-		read_buf = (read_buf + 1) % buf_count;
-		SDL_SemPost( free_sem );
-	}
+	if (should_wait())
+	    SDL_SemWait(data_read);
 	else
-	{
-		memset( out, 0, count );
-	}
+	    // Drop the remainder of the audio data
+	    return;
+
+	SDL_LockMutex(mutex);
+    }
+
+    samples_buf.write(finalWave, samples * 2);
+
+    SDL_UnlockMutex(mutex);
 }
 
-void Sound_Queue::fill_buffer_( void* user_data, Uint8* out, int count )
-{
-	((Sound_Queue*) user_data)->fill_buffer( out, count );
+
+bool Sound_Queue::init(long sampleRate) {
+    if (initialized) deinit();
+
+    SDL_AudioSpec audio;
+    SDL_memset(&audio, 0, sizeof(audio));
+
+    // for "no throttle" use regular rate, audio is just dropped
+    //audio.freq     = current_rate ? sampleRate * (current_rate / 100.0) : sampleRate;
+    audio.freq     = sampleRate * 0.5;
+
+    audio.format   = AUDIO_S16SYS;
+    audio.channels = 2;
+    audio.samples  = 2048;
+    audio.callback = soundCallback;
+    audio.userdata = this;
+
+    if (!SDL_WasInit(SDL_INIT_AUDIO)) SDL_Init(SDL_INIT_AUDIO);
+
+	if(SDL_OpenAudio(&audio, &audio_spec) < 0) {
+        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
+        return false;
+    }
+    //sound_device = SDL_OpenAudioDevice(NULL, 0, &audio, &audio_spec, SDL_AUDIO_ALLOW_ANY_CHANGE);
+
+    /*if(sound_device == 0) {
+        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
+        return false;
+    }*/
+
+    samples_buf.reset(std::ceil(buftime * sampleRate * 2));
+
+    mutex          = SDL_CreateMutex();
+    data_available = SDL_CreateSemaphore(0);
+    data_read      = SDL_CreateSemaphore(1);
+
+    // turn off audio events because we are not processing them
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+    SDL_EventState(SDL_AUDIODEVICEADDED,   SDL_IGNORE);
+    SDL_EventState(SDL_AUDIODEVICEREMOVED, SDL_IGNORE);
+#endif
+
+    return initialized = true;
+}
+
+void Sound_Queue::deinit() {
+    if (!initialized)
+        return;
+
+    initialized = false;
+
+    SDL_LockMutex(mutex);
+    /*int is_emulating = emulating;
+    emulating = 0;*/
+    SDL_SemPost(data_available);
+    SDL_SemPost(data_read);
+    SDL_UnlockMutex(mutex);
+
+    SDL_Delay(100);
+
+    SDL_DestroySemaphore(data_available);
+    data_available = nullptr;
+    SDL_DestroySemaphore(data_read);
+    data_read      = nullptr;
+
+    SDL_DestroyMutex(mutex);
+    mutex = nullptr;
+
+   // SDL_CloseAudioDevice(sound_device);
+	SDL_PauseAudio( true );
+	SDL_CloseAudio();
+
+    //emulating = is_emulating;
+}
+
+Sound_Queue::~Sound_Queue() {
+    deinit();
+}
+
+void Sound_Queue::pause() {}
+void Sound_Queue::resume() {}
+
+void Sound_Queue::reset() {
+ //   init(soundGetSampleRate());
+}
+
+void Sound_Queue::setThrottle(unsigned short throttle_) {
+//    current_rate = throttle_;
+//    reset();
 }

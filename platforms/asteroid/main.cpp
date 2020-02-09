@@ -326,20 +326,60 @@ static void gles2_Draw( uint16_t *pixels)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+u32 key = 0;
 void update(void)
 {
     int sampleCount = 0;
+    u32 new_key = 0;
 
+    s16 axis_input[2];
+    SDL_JoystickUpdate();
+    axis_input[0] = SDL_JoystickGetAxis(game_pad, 0);
+    axis_input[1] = SDL_JoystickGetAxis(game_pad, 1);
+
+    if (axis_input[0] < -3200)  new_key |= 1 << Left_Key;
+    else if (axis_input[0] > 3200)  new_key |= 1 << Right_Key;
+    if (axis_input[1] < -3200)  new_key |= 1 << Up_Key;
+    else if (axis_input[1] > 3200)  new_key |= 1 << Down_Key;
+
+    if (SDL_JoystickGetButton(game_pad, 1)) {
+        new_key |= 1 << A_Key;
+    }
+    if (SDL_JoystickGetButton(game_pad, 0)) {
+        new_key |= 1 << B_Key;
+    }
+    if (SDL_JoystickGetButton(game_pad, 4)) {
+        new_key |= 1 << Start_Key;
+    }
+    if (SDL_JoystickGetButton(game_pad, 3)) {
+        new_key |= 1 << Select_Key;
+    }
+    if (SDL_JoystickGetButton(game_pad, 11)) {
+        //quit();
+        running = false;
+    }
+
+    for (uint8_t i=0; i < 8; ++i) {
+        if (((key >> i) & 0x01) != ((new_key >> i) & 0x01)) {
+            if ((new_key >> i) & 0x01) {
+                theGearboyCore->KeyPressed((Gameboy_Keys)i);
+            } else {
+                theGearboyCore->KeyReleased((Gameboy_Keys)i);
+            }
+        }
+    }
+
+    key = new_key;
     theGearboyCore->RunToVBlank(theFrameBuffer, theSampleBufffer, &sampleCount);
 
     if (audioEnabled && (sampleCount > 0))
     {
-        theSoundQueue->write(theSampleBufffer, sampleCount);
+        theSoundQueue->write((uint16_t *)theSampleBufffer, sampleCount);
     }
 
     gles2_Draw((uint16_t*)theFrameBuffer);
-    //gles2_Draw(pixels);
 	eglSwapBuffers(display, surface);
+    //gles2_Draw(pixels);
     /*glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 160, 144, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*) theFrameBuffer);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     eglSwapBuffers(display, surface);*/
@@ -362,7 +402,7 @@ void init_sdl(void)
 {
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE) < 0)
     {
-        Log("SDL Error Init: %s", SDL_GetError());
+        printf("SDL Error Init: %s", SDL_GetError());
     }
 
     /*theWindow = SDL_CreateWindow("Gearboy", 0, 0, 0, 0, 0);
@@ -375,10 +415,11 @@ void init_sdl(void)
     SDL_ShowCursor(SDL_DISABLE);
 
     game_pad = SDL_JoystickOpen(0);
+    SDL_JoystickEventState(SDL_ENABLE);
 
     if(game_pad == NULL)
     {
-        Log("Warning: Unable to open game controller! SDL Error: %s\n", SDL_GetError());
+        printf("Warning: Unable to open game controller! SDL Error: %s\n", SDL_GetError());
     }
 /*
     kc_keypad_left = SDLK_LEFT;
@@ -520,13 +561,13 @@ void init_ogl(void)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);*/
     gles2_create();
 
-	int rr=(screen_height*10/frame_height);
-	int h = (frame_height*rr)/10;
-	int w = (frame_width*rr)/10;
+	int rr=(screen_height/frame_height);
+	int h = (frame_height*rr);
+	int w = (frame_width*rr);
 	if (w>screen_width) {
-	    rr = (screen_width*10/frame_width);
-	    h = (frame_height*rr)/10;
-	    w = (frame_width*rr)/10;
+	    rr = (screen_width/frame_width);
+	    h = (frame_height*rr);
+	    w = (frame_width*rr);
 	}
 	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);
 	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, 1.0f ,1.0f );
@@ -562,11 +603,15 @@ void init(void)
     init_ogl();
     init_sdl();
 
+    int rate = 44100;
+
     theGearboyCore = new GearboyCore();
     theGearboyCore->Init();
+    theGearboyCore->SetSoundSampleRate(rate);
 
     theSoundQueue = new Sound_Queue();
-    theSoundQueue->start(44100, 2);
+    theSoundQueue->init(rate);
+    //theSoundQueue->start(rate, 2);
 
     theFrameBuffer = new GB_Color[GAMEBOY_WIDTH * GAMEBOY_HEIGHT];
 
