@@ -37,16 +37,7 @@ Sound_Queue::Sound_Queue()
 	free_sem = NULL;
 	sound_open = false;
 
-	std::string platform = SDL_GetPlatform();
-	if (platform == "Linux")
-	{
-		SDL_InitSubSystem(SDL_INIT_AUDIO);
-		SDL_AudioInit("alsa");
-	}
-	else
-	{
-		SDL_Init(SDL_INIT_AUDIO);
-	}
+	SDL_Init(SDL_INIT_AUDIO);
 
 	atexit(SDL_Quit);
 }
