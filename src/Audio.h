@@ -46,6 +46,8 @@ private:
     int m_SampleRate;
     blip_sample_t* m_pSampleBuffer;
     bool m_bCGB;
+    int soundBufferLen;
+    int out_buf_size;
 };
 
 inline void Audio::Tick(unsigned int clockCycles)

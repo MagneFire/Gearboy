@@ -46,6 +46,8 @@ void Audio::Init()
 
     m_pBuffer->clock_rate(4194304);
     m_pBuffer->set_sample_rate(m_SampleRate);
+    soundBufferLen = (m_SampleRate / 60) * 4;
+    out_buf_size = soundBufferLen / 2;
 
     //m_pApu->treble_eq(-15.0);
     //m_pBuffer->bass_freq(100);
@@ -76,6 +78,9 @@ void Audio::SetSampleRate(int rate)
     {
         m_SampleRate = rate;
         m_pBuffer->set_sample_rate(m_SampleRate);
+
+        soundBufferLen = (m_SampleRate / 60) * 4;
+        out_buf_size = soundBufferLen / 2;
     }
 }
 
@@ -84,15 +89,19 @@ void Audio::EndFrame(s16* pSampleBuffer, int* pSampleCount)
     m_pApu->end_frame(m_ElapsedCycles);
     m_pBuffer->end_frame(m_ElapsedCycles);
 
-    int count = static_cast<int>(m_pBuffer->read_samples(m_pSampleBuffer, AUDIO_BUFFER_SIZE));
+    if (m_pBuffer->samples_avail() >= out_buf_size) {
+        int samples = (m_pBuffer->samples_avail() / out_buf_size) * out_buf_size;
+        int count = static_cast<int>(m_pBuffer->read_samples(m_pSampleBuffer, samples));
+        //printf("%d\t%d\t%d\r\n", out_buf_size, count, samples);
 
-    if (IsValidPointer(pSampleBuffer) && IsValidPointer(pSampleCount))
-    {
-        *pSampleCount = count;
-
-        for (int i=0; i<count; i++)
+        if (IsValidPointer(pSampleBuffer) && IsValidPointer(pSampleCount))
         {
-            pSampleBuffer[i] = m_pSampleBuffer[i];
+            *pSampleCount = count;
+
+            for (int i=0; i<count; i++)
+            {
+                pSampleBuffer[i] = m_pSampleBuffer[i];
+            }
         }
     }
 

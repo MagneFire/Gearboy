@@ -72,7 +72,7 @@ typedef void (*RamChangedCallback) (void);
 #define GAMEBOY_WIDTH 160
 #define GAMEBOY_HEIGHT 144
 
-#define AUDIO_BUFFER_SIZE 4096
+#define AUDIO_BUFFER_SIZE (4096*2)
 
 #define SAVESTATE_MAGIC 0x28011983
 
