@@ -81,10 +81,6 @@ void Sound_Queue::write(uint16_t * finalWave, int length) {
 
     SDL_LockMutex(mutex);
 
-    //if (SDL_GetAudioDeviceStatus(sound_device) != SDL_AUDIO_PLAYING)
-	//SDL_PauseAudioDevice(sound_device, 0);
-	SDL_PauseAudio( false );
-
     unsigned int samples = length / 4;
     std::size_t avail;
 
@@ -119,9 +115,7 @@ bool Sound_Queue::init(long sampleRate) {
     SDL_AudioSpec audio;
     SDL_memset(&audio, 0, sizeof(audio));
 
-    // for "no throttle" use regular rate, audio is just dropped
-    //audio.freq     = current_rate ? sampleRate * (current_rate / 100.0) : sampleRate;
-    audio.freq     = sampleRate * 0.5;
+    audio.freq     = sampleRate;
 
     audio.format   = AUDIO_S16SYS;
     audio.channels = 2;
@@ -135,12 +129,6 @@ bool Sound_Queue::init(long sampleRate) {
         std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
         return false;
     }
-    //sound_device = SDL_OpenAudioDevice(NULL, 0, &audio, &audio_spec, SDL_AUDIO_ALLOW_ANY_CHANGE);
-
-    /*if(sound_device == 0) {
-        std::cerr << "Failed to open audio: " << SDL_GetError() << std::endl;
-        return false;
-    }*/
 
     samples_buf.reset(std::ceil(buftime * sampleRate * 2));
 
@@ -153,6 +141,7 @@ bool Sound_Queue::init(long sampleRate) {
     SDL_EventState(SDL_AUDIODEVICEADDED,   SDL_IGNORE);
     SDL_EventState(SDL_AUDIODEVICEREMOVED, SDL_IGNORE);
 #endif
+    SDL_PauseAudio( false );
 
     return initialized = true;
 }

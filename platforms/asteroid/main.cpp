@@ -34,7 +34,6 @@
 #include "EGL/egl.h"
 #include "EGL/eglext.h"
 #include "GLES2/gl2.h"
-//#include "bcm_host.h"
 #include "GLES/gl.h"
 #include "EGL/egl.h"
 #include "EGL/eglext.h"
@@ -52,10 +51,6 @@ bool paused = false;
 #define frame_width 160
 #define frame_height 144
 
-//EGLDisplay display;
-//EGLSurface surface;
-//EGLContext context;
-
 static const char *output_file = "gearboy.cfg";
 
 const float kGB_Width = 160.0f;
@@ -69,7 +64,11 @@ GearboyCore* theGearboyCore;
 Sound_Queue* theSoundQueue;
 GB_Color* theFrameBuffer;
 GLuint theGBTexture;
+int rate = 44100;
+static uint16_t soundFinalWave[1600];
 s16 theSampleBufffer[AUDIO_BUFFER_SIZE];
+
+u32 key = 0;
 
 bool audioEnabled = true;
 
@@ -88,14 +87,9 @@ SDL_Joystick* game_pad = NULL;
 bool jg_x_axis_invert, jg_y_axis_invert;
 int jg_a, jg_b, jg_start, jg_select, jg_x_axis, jg_y_axis;
 
-//uint32_t screen_width, screen_height;
-
-//SDL_Window* theWindow;
 
 
 static GLfloat proj[4][4];
-static GLint filter_min = GL_NEAREST;
-static GLint filter_mag = GL_NEAREST;
 
 #define	SHOW_ERROR		gles_show_error();
 
@@ -119,15 +113,7 @@ static const char* fragment_shader =
 	"{														\n"
 	"	gl_FragColor = texture2D(u_texture, v_texcoord);	\n"
 	"}														\n";
-/*
-static const GLfloat vertices[] =
-{
-	-0.5f, -0.5f, 0.0f,
-	+0.5f, -0.5f, 0.0f,
-	+0.5f, +0.5f, 0.0f,
-	-0.5f, +0.5f, 0.0f,
-};
-*/
+
 static const GLfloat vertices[] =
 {
 	-0.5f, -0.5f, 0.0f,
@@ -306,8 +292,8 @@ static void gles2_Draw( uint16_t *pixels)
 
 	glActiveTexture(GL_TEXTURE0);
 	glUniform1i(shader.u_texture, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mag);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_min);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
@@ -326,7 +312,6 @@ static void gles2_Draw( uint16_t *pixels)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-u32 key = 0;
 void update(void)
 {
     int sampleCount = 0;
@@ -355,7 +340,6 @@ void update(void)
         new_key |= 1 << Select_Key;
     }
     if (SDL_JoystickGetButton(game_pad, 11)) {
-        //quit();
         running = false;
     }
 
@@ -374,15 +358,23 @@ void update(void)
 
     if (audioEnabled && (sampleCount > 0))
     {
-        theSoundQueue->write((uint16_t *)theSampleBufffer, sampleCount);
+        int soundBufferLen = (rate / 60) * 4;
+
+        // soundBufferLen should have a whole number of sample pairs
+        assert(soundBufferLen % (2 * sizeof *soundFinalWave) == 0);
+
+        // number of samples in output buffer
+        int const out_buf_size = soundBufferLen / sizeof *soundFinalWave;
+
+        int samplesRead = 0;
+        while ((sampleCount - samplesRead) >= out_buf_size) {
+            theSoundQueue->write((uint16_t*)&theSampleBufffer[samplesRead], soundBufferLen);
+            samplesRead += out_buf_size;
+        }
     }
 
     gles2_Draw((uint16_t*)theFrameBuffer);
 	eglSwapBuffers(display, surface);
-    //gles2_Draw(pixels);
-    /*glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 160, 144, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*) theFrameBuffer);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    eglSwapBuffers(display, surface);*/
 }
 
 
@@ -469,96 +461,6 @@ void init_ogl(void)
     int32_t success = 0;
 
     hwcomposer_init();
-    /*
-
-    // Get an EGL display connection
-    display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    assert(display!=EGL_NO_DISPLAY);
-
-    // Initialize the EGL display connection
-    result = eglInitialize(display, NULL, NULL);
-    assert(EGL_FALSE != result);
-
-    // Get an appropriate EGL frame buffer configuration
-    result = eglChooseConfig(display, attribute_list, &config, 1, &num_config);
-    assert(EGL_FALSE != result);
-
-    // Create an EGL rendering context
-    context = eglCreateContext(display, config, EGL_NO_CONTEXT, NULL);
-    assert(context!=EGL_NO_CONTEXT);
-
-    // Create an EGL window surface
-    success = graphics_get_display_size(0, &screen_width, &screen_height);
-    assert( success >= 0 );
-
-    int32_t zoom = screen_width / GAMEBOY_WIDTH;
-    int32_t zoom2 = screen_height / GAMEBOY_HEIGHT;
-
-    if (zoom2 < zoom)
-        zoom = zoom2;
-
-    int32_t display_width = GAMEBOY_WIDTH * zoom;
-    int32_t display_height = GAMEBOY_HEIGHT * zoom;
-    int32_t display_offset_x = (screen_width / 2) - (display_width / 2);
-    int32_t display_offset_y = (screen_height / 2) - (display_height / 2);
-
-    dst_rect.x = 0;
-    dst_rect.y = 0;
-    dst_rect.width = screen_width;
-    dst_rect.height = screen_height;
-
-    src_rect.x = 0;
-    src_rect.y = 0;
-    src_rect.width = screen_width << 16;
-    src_rect.height = screen_height << 16;
-
-    dispman_display = vc_dispmanx_display_open( 0 );
-    dispman_update = vc_dispmanx_update_start( 0 );
-
-    alpha.flags = DISPMANX_FLAGS_ALPHA_FIXED_ALL_PIXELS;
-    alpha.opacity = 255;
-    alpha.mask = 0;
-
-    dispman_element = vc_dispmanx_element_add ( dispman_update, dispman_display,
-        0, &dst_rect, 0,
-        &src_rect, DISPMANX_PROTECTION_NONE, &alpha, 0, DISPMANX_NO_ROTATE);
-
-    nativewindow.element = dispman_element;
-    nativewindow.width = screen_width;
-    nativewindow.height = screen_height;
-    vc_dispmanx_update_submit_sync( dispman_update );
-
-    surface = eglCreateWindowSurface( display, config, &nativewindow, NULL );
-    assert(surface != EGL_NO_SURFACE);
-
-    // Connect the context to the surface
-    result = eglMakeCurrent(display, surface, surface, context);
-    assert(EGL_FALSE != result);
-
-    */
-/*
-    int32_t zoom = screen_width / GAMEBOY_WIDTH;
-    int32_t zoom2 = screen_height / GAMEBOY_HEIGHT;
-
-    if (zoom2 < zoom)
-        zoom = zoom2;
-
-    int32_t display_width = GAMEBOY_WIDTH * zoom;
-    int32_t display_height = GAMEBOY_HEIGHT * zoom;
-    int32_t display_offset_x = (screen_width / 2) - (display_width / 2);
-    int32_t display_offset_y = (screen_height / 2) - (display_height / 2);
-
-    eglSwapInterval(display, 1);
-
-    glGenTextures(1, &theGBTexture);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, theGBTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*) NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);*/
     gles2_create();
 
 	int rr=(screen_height/frame_height);
@@ -571,27 +473,6 @@ void init_ogl(void)
 	}
 	glViewport((screen_width-w)/2, (screen_height-h)/2, w, h);
 	SetOrtho(proj, -0.5f, +0.5f, +0.5f, -0.5f, -1.0f, 1.0f, 1.0f ,1.0f );
-    /*glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrthof(0.0f, screen_width, screen_height, 0.0f, -1.0f, 1.0f);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glViewport(0.0f, 0.0f, screen_width, screen_height);*/
-/*
-    quadVerts[0] = display_offset_x;
-    quadVerts[1] = display_offset_y;
-    quadVerts[2] = display_offset_x + display_width;
-    quadVerts[3] = display_offset_y;
-    quadVerts[4] = display_offset_x + display_width;
-    quadVerts[5] = display_offset_y + display_height;
-    quadVerts[6] = display_offset_x;
-    quadVerts[7] = display_offset_y + display_height;
-
-    glVertexPointer(2, GL_SHORT, 0, quadVerts);
-    glEnableClientState(GL_VERTEX_ARRAY);
-
-    glTexCoordPointer(2, GL_FLOAT, 0, kQuadTex);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);*/
 
     glClear(GL_COLOR_BUFFER_BIT);
 }
@@ -602,8 +483,6 @@ void init(void)
     //bcm_host_init();
     init_ogl();
     init_sdl();
-
-    int rate = 44100;
 
     theGearboyCore = new GearboyCore();
     theGearboyCore->Init();

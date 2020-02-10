@@ -14,8 +14,10 @@ INCLUDES+= -I$(GEARBOY_SRC) -I./
 # Platform specific definitions 
 
 #VPATH      += .. ../arm
-CFLAGS     += -DARM_ARCH -DASTEROID_BUILD -DQCOM_BSP -DHWC_PLUGIN_HAVE_HWCOMPOSER1_API  -Wall
+CFLAGS     += -DQCOM_BSP -DHWC_PLUGIN_HAVE_HWCOMPOSER1_API  -Wall
 CFLAGS     += -O3 -marm -mcpu=cortex-a7
+#CFLAGS     += -DQCOM_BSP -DHWC_PLUGIN_HAVE_HWCOMPOSER1_API  -Wall
+#CFLAGS     += -O3 -march=armv7-a -mtune=cortex-a7  -fpermissive
 CFLAGS     += `pkg-config sdl --cflags`
 CFLAGS     +=-Wl,-O1 -Wl,--hash-style=gnu -Wl,--as-needed
 INCFLAGSCLUDES+=`pkg-config android-headers --cflags`

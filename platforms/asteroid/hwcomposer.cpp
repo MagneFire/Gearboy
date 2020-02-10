@@ -80,10 +80,6 @@ EGLSurface surface = NULL;
 EGLContext context = NULL;
 static HWComposer *win = NULL;
 
-static GLfloat proj[4][4];
-static GLint filter_min;
-static GLint filter_mag;
-
 void hwcomposer_init() {
 	EGLConfig ecfg;
 	EGLint num_config;
