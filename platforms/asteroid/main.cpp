@@ -567,36 +567,42 @@ void end(void)
 
 int main(int argc, char** argv)
 {
+    char load_filename[512];
+    bool forcedmg = false;
     init();
 
-    if (argc < 2 || argc > 4)
+    sprintf(load_filename, getenv("GAME_PATH"));
+    if (load_filename[0] == '\0')
     {
-        end();
-        printf("usage: %s rom_path [options]\n", argv[0]);
-        printf("options:\n-nosound\n-forcedmg\n");
-        return -1;
-    }
-
-    bool forcedmg = false;
-
-    if (argc > 2)
-    {
-        for (int i = 2; i < argc; i++)
+        if (argc < 2 || argc > 4)
         {
-            if (strcmp("-nosound", argv[i]) == 0)
-                audioEnabled = false;
-            else if (strcmp("-forcedmg", argv[i]) == 0)
-                forcedmg = true;
-            else
+            end();
+            printf("usage: %s rom_path [options]\n", argv[0]);
+            printf("options:\n-nosound\n-forcedmg\n");
+            return -1;
+        }
+
+
+        if (argc > 2)
+        {
+            for (int i = 2; i < argc; i++)
             {
-                end();
-                printf("invalid option: %s\n", argv[i]);
-                return -1;
+                if (strcmp("-nosound", argv[i]) == 0)
+                    audioEnabled = false;
+                else if (strcmp("-forcedmg", argv[i]) == 0)
+                    forcedmg = true;
+                else
+                {
+                    end();
+                    printf("invalid option: %s\n", argv[i]);
+                    return -1;
+                }
             }
         }
+        sprintf(load_filename, argv[1]);
     }
 
-    if (theGearboyCore->LoadROM(argv[1], forcedmg))
+    if (theGearboyCore->LoadROM(load_filename, forcedmg))
     {
         GB_Color color1;
         GB_Color color2;
