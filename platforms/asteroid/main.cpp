@@ -82,7 +82,7 @@ struct palette_color
 
 palette_color dmg_palette[4];
 
-SDL_Joystick* game_pad = NULL;
+SDL_GameController* game_pad = NULL;
 //SDL_Keycode kc_keypad_left, kc_keypad_right, kc_keypad_up, kc_keypad_down, kc_keypad_a, kc_keypad_b, kc_keypad_start, kc_keypad_select, kc_emulator_pause, kc_emulator_quit;
 bool jg_x_axis_invert, jg_y_axis_invert;
 int jg_a, jg_b, jg_start, jg_select, jg_x_axis, jg_y_axis;
@@ -312,35 +312,63 @@ static void gles2_Draw( uint16_t *pixels)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+u32 joy_map(u32 button)
+{
+  switch(button)
+  {
+    case SDL_CONTROLLER_BUTTON_START:
+      return (1 << Start_Key);
+    case SDL_CONTROLLER_BUTTON_BACK:
+    case SDL_CONTROLLER_BUTTON_GUIDE:
+      return (1 << Select_Key);
+    case SDL_CONTROLLER_BUTTON_B:
+      return (1 << B_Key);
+    case SDL_CONTROLLER_BUTTON_A:
+      return (1 << A_Key);
+    case SDL_CONTROLLER_BUTTON_DPAD_UP:
+      return (1 << Up_Key);
+    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+      return (1 << Down_Key);
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+      return (1 << Left_Key);
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+      return (1 << Right_Key);
+    default:
+      return 0;
+  }
+}
+
 void update(void)
 {
     int sampleCount = 0;
     u32 new_key = 0;
+    SDL_Event event;
 
-    s16 axis_input[2];
-    SDL_JoystickUpdate();
-    axis_input[0] = SDL_JoystickGetAxis(game_pad, 0);
-    axis_input[1] = SDL_JoystickGetAxis(game_pad, 1);
-
-    if (axis_input[0] < -3200)  new_key |= 1 << Left_Key;
-    else if (axis_input[0] > 3200)  new_key |= 1 << Right_Key;
-    if (axis_input[1] < -3200)  new_key |= 1 << Up_Key;
-    else if (axis_input[1] > 3200)  new_key |= 1 << Down_Key;
-
-    if (SDL_JoystickGetButton(game_pad, 1)) {
-        new_key |= 1 << A_Key;
-    }
-    if (SDL_JoystickGetButton(game_pad, 0)) {
-        new_key |= 1 << B_Key;
-    }
-    if (SDL_JoystickGetButton(game_pad, 4)) {
-        new_key |= 1 << Start_Key;
-    }
-    if (SDL_JoystickGetButton(game_pad, 3)) {
-        new_key |= 1 << Select_Key;
-    }
-    if (SDL_JoystickGetButton(game_pad, 11)) {
-        running = false;
+    while(SDL_PollEvent(&event))
+    {
+        switch(event.type) {
+            case SDL_CONTROLLERAXISMOTION:
+            if (event.caxis.axis==SDL_CONTROLLER_AXIS_LEFTX) { //Left-Right
+                if (event.caxis.value < -3200)  new_key |= 1 << Left_Key;
+                else if (event.caxis.value > 3200)  new_key |= 1 << Right_Key;
+            }
+            if (event.caxis.axis==SDL_CONTROLLER_AXIS_LEFTY) {  //Up-Down
+                if (event.caxis.value < -3200)  new_key |= 1 << Up_Key;
+                else if (event.caxis.value > 3200)  new_key |= 1 << Down_Key;
+            }
+            break;
+            case SDL_CONTROLLERBUTTONDOWN:
+            if (event.cbutton.button == SDL_CONTROLLER_BUTTON_Y) {
+                running = false;
+            }
+            new_key |= joy_map(event.cbutton.button);
+            break;
+            case SDL_CONTROLLERBUTTONUP:
+            new_key &= ~(joy_map(event.cbutton.button));
+            break;
+            default:
+            break;
+        }
     }
 
     for (uint8_t i=0; i < 8; ++i) {
@@ -393,7 +421,7 @@ static void SetOrtho(GLfloat m[4][4], GLfloat left, GLfloat right, GLfloat botto
 
 void init_sdl(void)
 {
-    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE) < 0)
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_NOPARACHUTE) < 0)
     {
         printf("SDL Error Init: %s", SDL_GetError());
     }
@@ -407,8 +435,8 @@ void init_sdl(void)
 
     SDL_ShowCursor(SDL_DISABLE);
 
-    game_pad = SDL_JoystickOpen(0);
-    SDL_JoystickEventState(SDL_ENABLE);
+    game_pad = SDL_GameControllerOpen(0);
+    SDL_GameControllerEventState(SDL_ENABLE);
 
     if(game_pad == NULL)
     {
@@ -548,7 +576,7 @@ void end(void)
         Log("I/O error while writing file: %s", output_file);
     }
 
-    SDL_JoystickClose(game_pad);
+    SDL_GameControllerClose(game_pad);
 
     SafeDeleteArray(theFrameBuffer);
     SafeDelete(theSoundQueue);
