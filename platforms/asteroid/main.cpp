@@ -304,8 +304,8 @@ static void gles2_Draw( uint16_t *pixels)
 
 	glActiveTexture(GL_TEXTURE0);
 	glUniform1i(shader.u_texture, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
