@@ -51,6 +51,20 @@ bool paused = false;
 #define frame_width 160
 #define frame_height 144
 
+enum GC_Keys
+{
+    GC_A_Key = A_Key,
+    GC_B_Key = B_Key,
+    GC_Start_Key = Start_Key,
+    GC_Select_Key = Select_Key,
+    GC_Right_Key = Right_Key,
+    GC_Left_Key = Left_Key,
+    GC_Up_Key = Up_Key,
+    GC_Down_Key = Down_Key,
+    GC_Quit_Key = 10,
+    GC_None_Key = 11,
+};
+
 static const char *output_file = "gearboy.cfg";
 
 const float kGB_Width = 160.0f;
@@ -67,8 +81,6 @@ GLuint theGBTexture;
 int rate = 44100;
 static uint16_t soundFinalWave[1600];
 s16 theSampleBufffer[AUDIO_BUFFER_SIZE];
-
-u32 key = 0;
 
 bool audioEnabled = true;
 
@@ -317,71 +329,76 @@ u32 joy_map(u32 button)
   switch(button)
   {
     case SDL_CONTROLLER_BUTTON_START:
-      return (1 << Start_Key);
+      return GC_Start_Key;
     case SDL_CONTROLLER_BUTTON_BACK:
     case SDL_CONTROLLER_BUTTON_GUIDE:
-      return (1 << Select_Key);
+      return GC_Select_Key;
     case SDL_CONTROLLER_BUTTON_B:
-      return (1 << B_Key);
+      return GC_B_Key;
     case SDL_CONTROLLER_BUTTON_A:
-      return (1 << A_Key);
+      return GC_A_Key;
     case SDL_CONTROLLER_BUTTON_DPAD_UP:
-      return (1 << Up_Key);
+      return GC_Up_Key;
     case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-      return (1 << Down_Key);
+      return GC_Down_Key;
     case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-      return (1 << Left_Key);
+      return GC_Left_Key;
     case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-      return (1 << Right_Key);
+      return GC_Right_Key;
+    case SDL_CONTROLLER_BUTTON_Y:
+      return GC_Quit_Key;
     default:
-      return 0;
+      return GC_None_Key;
   }
 }
 
 void update(void)
 {
     int sampleCount = 0;
-    u32 new_key = 0;
     SDL_Event event;
+    u32 button;
 
     while(SDL_PollEvent(&event))
     {
         switch(event.type) {
             case SDL_CONTROLLERAXISMOTION:
             if (event.caxis.axis==SDL_CONTROLLER_AXIS_LEFTX) { //Left-Right
-                if (event.caxis.value < -3200)  new_key |= 1 << Left_Key;
-                else if (event.caxis.value > 3200)  new_key |= 1 << Right_Key;
+                if (event.caxis.value < -3200)  theGearboyCore->KeyPressed(Left_Key);
+                else if (event.caxis.value > 3200)  theGearboyCore->KeyPressed(Right_Key);
+                else {
+                    theGearboyCore->KeyReleased(Left_Key);
+                    theGearboyCore->KeyReleased(Right_Key);
+                }
             }
             if (event.caxis.axis==SDL_CONTROLLER_AXIS_LEFTY) {  //Up-Down
-                if (event.caxis.value < -3200)  new_key |= 1 << Up_Key;
-                else if (event.caxis.value > 3200)  new_key |= 1 << Down_Key;
+                if (event.caxis.value < -3200) theGearboyCore->KeyPressed(Up_Key);
+                else if (event.caxis.value > 3200)  theGearboyCore->KeyPressed(Down_Key);
+                else {
+                    theGearboyCore->KeyReleased(Up_Key);
+                    theGearboyCore->KeyReleased(Down_Key);
+                }
             }
             break;
             case SDL_CONTROLLERBUTTONDOWN:
-            if (event.cbutton.button == SDL_CONTROLLER_BUTTON_Y) {
+            button = joy_map(event.cbutton.button);
+            if (button == GC_Quit_Key) {
                 running = false;
+            } else if (button != GC_None_Key) {
+                theGearboyCore->KeyPressed((Gameboy_Keys)button);
             }
-            new_key |= joy_map(event.cbutton.button);
             break;
             case SDL_CONTROLLERBUTTONUP:
-            new_key &= ~(joy_map(event.cbutton.button));
+            button = joy_map(event.cbutton.button);
+            if (button != GC_None_Key && button != GC_Quit_Key) {
+                theGearboyCore->KeyPressed((Gameboy_Keys)button);
+            }
+            theGearboyCore->KeyReleased((Gameboy_Keys)joy_map(event.cbutton.button));
             break;
             default:
             break;
         }
     }
 
-    for (uint8_t i=0; i < 8; ++i) {
-        if (((key >> i) & 0x01) != ((new_key >> i) & 0x01)) {
-            if ((new_key >> i) & 0x01) {
-                theGearboyCore->KeyPressed((Gameboy_Keys)i);
-            } else {
-                theGearboyCore->KeyReleased((Gameboy_Keys)i);
-            }
-        }
-    }
-
-    key = new_key;
     theGearboyCore->RunToVBlank(theFrameBuffer, theSampleBufffer, &sampleCount);
 
     if (audioEnabled && (sampleCount > 0))
