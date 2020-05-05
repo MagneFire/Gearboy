@@ -438,22 +438,26 @@ static void SetOrtho(GLfloat m[4][4], GLfloat left, GLfloat right, GLfloat botto
 
 void init_sdl(void)
 {
-    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_NOPARACHUTE) < 0)
+    char joystick_active[20];
+    char joystick_map[512];
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0)
     {
         printf("SDL Error Init: %s", SDL_GetError());
     }
 
-    /*theWindow = SDL_CreateWindow("Gearboy", 0, 0, 0, 0, 0);
-
-    if (theWindow == NULL)
-    {
-        Log("SDL Error Video: %s", SDL_GetError());
-    }*/
-
     SDL_ShowCursor(SDL_DISABLE);
-
-    game_pad = SDL_GameControllerOpen(0);
     SDL_GameControllerEventState(SDL_ENABLE);
+
+    sprintf(joystick_active, getenv("JOYSTICK_ACTIVE"));
+    if (joystick_active[0] != '\0') {
+        strcpy(joystick_map, "JOYSTICK_MAP");
+        strcat(joystick_map, joystick_active);
+        sprintf(joystick_map, getenv(joystick_map));
+        if (joystick_map[0] != '\0') {
+            SDL_GameControllerAddMapping(joystick_map);
+        }
+        game_pad = SDL_GameControllerOpen(atoi(joystick_active));
+    }
 
     if(game_pad == NULL)
     {
