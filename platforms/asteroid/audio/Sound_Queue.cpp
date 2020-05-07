@@ -19,11 +19,6 @@
 #include <iostream>
 #include <SDL_events.h>
 #include "Sound_Queue.h"
-//#include "ConfigManager.h"
-//#include "../gba/Globals.h"
-//#include "../gba/Sound.h"
-
-//extern int emulating;
 
 // Hold up to 300 ms of data in the ring buffer
 const double Sound_Queue::buftime = 0.300;
@@ -59,20 +54,12 @@ void Sound_Queue::read(sample_t* stream, int length) {
     if (!initialized)
         return;
 
-    if (!buffer_size()) {
-        if (should_wait())
-            SDL_SemWait(data_available);
-        else
-            return;
-    }
-
     SDL_LockMutex(mutex);
 
     samples_buf.read(stream, std::min((std::size_t)(length / 2), samples_buf.used()));
 
+	SDL_CondSignal(buf_ready);
     SDL_UnlockMutex(mutex);
-
-    SDL_SemPost(data_read);
 }
 
 void Sound_Queue::write(const sample_t * finalWave, int length) {
@@ -85,22 +72,12 @@ void Sound_Queue::write(const sample_t * finalWave, int length) {
     std::size_t avail;
 
     while ((avail = samples_buf.avail() / 2) < samples) {
-	samples_buf.write(finalWave, avail * 2);
+        samples_buf.write(finalWave, avail * 2);
 
-	finalWave += avail * 2;
-	samples -= avail;
+        finalWave += avail * 2;
+        samples -= avail;
 
-	SDL_UnlockMutex(mutex);
-
-	SDL_SemPost(data_available);
-
-	if (should_wait())
-	    SDL_SemWait(data_read);
-	else
-	    // Drop the remainder of the audio data
-	    return;
-
-	SDL_LockMutex(mutex);
+		SDL_CondWait(buf_ready, mutex);
     }
 
     samples_buf.write(finalWave, samples * 2);
@@ -137,9 +114,8 @@ bool Sound_Queue::init(long sampleRate) {
 
     samples_buf.reset(std::ceil(buftime * sampleRate * 2));
 
+    buf_ready       = SDL_CreateCond();
     mutex          = SDL_CreateMutex();
-    data_available = SDL_CreateSemaphore(0);
-    data_read      = SDL_CreateSemaphore(1);
 
     // turn off audio events because we are not processing them
 #if SDL_VERSION_ATLEAST(2, 0, 4)
@@ -157,28 +133,13 @@ void Sound_Queue::deinit() {
 
     initialized = false;
 
-    SDL_LockMutex(mutex);
-    /*int is_emulating = emulating;
-    emulating = 0;*/
-    SDL_SemPost(data_available);
-    SDL_SemPost(data_read);
-    SDL_UnlockMutex(mutex);
-
-    SDL_Delay(100);
-
-    SDL_DestroySemaphore(data_available);
-    data_available = nullptr;
-    SDL_DestroySemaphore(data_read);
-    data_read      = nullptr;
+    SDL_DestroyCond(buf_ready);
 
     SDL_DestroyMutex(mutex);
     mutex = nullptr;
 
-   // SDL_CloseAudioDevice(sound_device);
 	SDL_PauseAudio( true );
 	SDL_CloseAudio();
-
-    //emulating = is_emulating;
 }
 
 Sound_Queue::~Sound_Queue() {
@@ -188,11 +149,4 @@ Sound_Queue::~Sound_Queue() {
 void Sound_Queue::pause() {}
 void Sound_Queue::resume() {}
 
-void Sound_Queue::reset() {
- //   init(soundGetSampleRate());
-}
-
-void Sound_Queue::setThrottle(unsigned short throttle_) {
-//    current_rate = throttle_;
-//    reset();
-}
+void Sound_Queue::reset() {}

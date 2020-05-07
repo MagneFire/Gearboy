@@ -34,7 +34,6 @@ public:
         virtual void reset();
         virtual void resume();
         virtual void write(const sample_t *finalWave, int length);
-        virtual void setThrottle(unsigned short throttle_);
 
 protected:
         static void soundCallback(void* data, uint8_t* stream, int length);
@@ -47,8 +46,7 @@ private:
         RingBuffer<sample_t> samples_buf;
 
         SDL_mutex* mutex;
-        SDL_sem* data_available;
-        SDL_sem* data_read;
+        SDL_cond* buf_ready;
         SDL_AudioSpec audio_spec;
 
         unsigned short current_rate;

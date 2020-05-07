@@ -58,8 +58,6 @@ class SoundDriver
          * Write length bytes of data from the finalWave buffer to the driver output buffer.
          */
         virtual void write(const sample_t *finalWave, int length) = 0;
-
-        virtual void setThrottle(unsigned short throttle) = 0;
 };
 
 #endif // __VBA_SOUND_DRIVER_H__
