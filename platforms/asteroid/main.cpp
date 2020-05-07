@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <SDL2/SDL.h>
-#include <libconfig.h++>
+//#include <libconfig.h++>
 #include "GLES/gl.h"
 #include "EGL/egl.h"
 #include "EGL/eglext.h"
@@ -42,7 +42,7 @@
 #include "hwcomposer.h"
 
 using namespace std;
-using namespace libconfig;
+//using namespace libconfig;
 
 bool running = true;
 bool paused = false;
@@ -549,10 +549,10 @@ void init(void)
 
 void end(void)
 {
-    Config cfg;
+ /*   Config cfg;
 
     Setting &root = cfg.getRoot();
-    Setting &address = root.add(GEARBOY_TITLE, Setting::TypeGroup);
+    Setting &address = root.add(GEARBOY_TITLE, Setting::TypeGroup);*/
 /*
     address.add("keypad_left", Setting::TypeString) = SDL_GetKeyName(kc_keypad_left);
     address.add("keypad_right", Setting::TypeString) = SDL_GetKeyName(kc_keypad_right);
@@ -575,7 +575,7 @@ void end(void)
     address.add("emulator_pause", Setting::TypeString) = SDL_GetKeyName(kc_emulator_pause);
     address.add("emulator_quit", Setting::TypeString) = SDL_GetKeyName(kc_emulator_quit);
 */
-    address.add("emulator_pal0_red", Setting::TypeInt) = dmg_palette[0].red;
+    /*address.add("emulator_pal0_red", Setting::TypeInt) = dmg_palette[0].red;
     address.add("emulator_pal0_green", Setting::TypeInt) = dmg_palette[0].green;
     address.add("emulator_pal0_blue", Setting::TypeInt) = dmg_palette[0].blue;
     address.add("emulator_pal1_red", Setting::TypeInt) = dmg_palette[1].red;
@@ -595,7 +595,7 @@ void end(void)
     catch(const FileIOException &fioex)
     {
         Log("I/O error while writing file: %s", output_file);
-    }
+    }*/
 
     SDL_GameControllerClose(game_pad);
 
