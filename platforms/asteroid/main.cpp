@@ -72,8 +72,6 @@ enum GC_Keys
     GC_None_Key = 11,
 };
 
-static const char *output_file = "gearboy.cfg";
-
 const float kGB_Width = 160.0f;
 const float kGB_Height = 144.0f;
 const float kGB_TexWidth = kGB_Width / 256.0f;
@@ -248,7 +246,6 @@ typedef	struct ShaderInfo {
 } ShaderInfo;
 
 static ShaderInfo shader;
-static ShaderInfo shader_filtering;
 static GLuint buffers[3];
 static GLuint textures[2];
 
@@ -473,14 +470,12 @@ void init_sdl(void)
 
 void init_ogl(void)
 {
-    int32_t success = 0;
-
     hwcomposer_init();
     gles2_create();
 
-	int rr=(screen_height/frame_height);
-	int h = (frame_height*rr);
-	int w = (frame_width*rr);
+	uint32_t rr=(screen_height/frame_height);
+	uint32_t h = (frame_height*rr);
+	uint32_t w = (frame_width*rr);
 	if (w>screen_width) {
 	    rr = (screen_width/frame_width);
 	    h = (frame_height*rr);
