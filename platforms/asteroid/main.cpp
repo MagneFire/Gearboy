@@ -47,6 +47,13 @@ using namespace std;
 bool running = true;
 bool paused = false;
 
+// red, green, blue
+static GB_Color original_palette[4] = {{0x87, 0x96, 0x03},{0x4D, 0x6B, 0x03},{0x2B, 0x55, 0x03},{0x14, 0x44, 0x03}};
+static GB_Color sharp_palette[4] = {{0xF5, 0xFA, 0xEF},{0x86, 0xC2, 0x70},{0x2F, 0x69, 0x57},{0x0B, 0x19, 0x20}};
+static GB_Color bw_palette[4] = {{0xFF, 0xFF, 0xFF},{0xAA, 0xAA, 0xAA},{0x55, 0x55, 0x55},{0x00, 0x00, 0x00}};
+static GB_Color autumn_palette[4] = {{0xFF, 0xF6, 0xD3},{0xF9, 0xA8, 0x75},{0xEB, 0x6B, 0x6F},{0x7C, 0x3F, 0x58}};
+static GB_Color soft_palette[4] = {{0xE0, 0xE0, 0xAA},{0xB0, 0xB8, 0x7C},{0x72, 0x82, 0x5B},{0x39, 0x34, 0x17}};
+static GB_Color slime_palette[4] = {{0xD4, 0xEB, 0xA5},{0x62, 0xB8, 0x7C},{0x27, 0x76, 0x5D},{0x1D, 0x39, 0x39}};
 
 #define frame_width 160
 #define frame_height 144
@@ -83,16 +90,6 @@ static uint16_t soundFinalWave[1600];
 s16 theSampleBufffer[AUDIO_BUFFER_SIZE];
 
 bool audioEnabled = true;
-
-struct palette_color
-{
-    int red;
-    int green;
-    int blue;
-    int alpha;
-};
-
-palette_color dmg_palette[4];
 
 SDL_GameController* game_pad = NULL;
 //SDL_Keycode kc_keypad_left, kc_keypad_right, kc_keypad_up, kc_keypad_down, kc_keypad_a, kc_keypad_b, kc_keypad_start, kc_keypad_select, kc_emulator_pause, kc_emulator_quit;
@@ -463,17 +460,6 @@ void init_sdl(void)
     {
         printf("Warning: Unable to open game controller! SDL Error: %s\n", SDL_GetError());
     }
-/*
-    kc_keypad_left = SDLK_LEFT;
-    kc_keypad_right = SDLK_RIGHT;
-    kc_keypad_up = SDLK_UP;
-    kc_keypad_down = SDLK_DOWN;
-    kc_keypad_a = SDLK_a;
-    kc_keypad_b = SDLK_s;
-    kc_keypad_start = SDLK_RETURN;
-    kc_keypad_select = SDLK_SPACE;
-    kc_emulator_pause = SDLK_p;
-    kc_emulator_quit = SDLK_ESCAPE;*/
 
     jg_x_axis_invert = false;
     jg_y_axis_invert = false;
@@ -483,27 +469,6 @@ void init_sdl(void)
     jg_select = 8;
     jg_x_axis = 0;
     jg_y_axis = 1;
-
-    dmg_palette[0].red = 0xEF;
-    dmg_palette[0].green = 0xF3;
-    dmg_palette[0].blue = 0xD5;
-    dmg_palette[0].alpha = 0xFF;
-
-    dmg_palette[1].red = 0xA3;
-    dmg_palette[1].green = 0xB6;
-    dmg_palette[1].blue = 0x7A;
-    dmg_palette[1].alpha = 0xFF;
-
-    dmg_palette[2].red = 0x37;
-    dmg_palette[2].green = 0x61;
-    dmg_palette[2].blue = 0x3B;
-    dmg_palette[2].alpha = 0xFF;
-
-    dmg_palette[3].red = 0x04;
-    dmg_palette[3].green = 0x1C;
-    dmg_palette[3].blue = 0x16;
-    dmg_palette[3].alpha = 0xFF;
-
 }
 
 void init_ogl(void)
@@ -549,53 +514,6 @@ void init(void)
 
 void end(void)
 {
- /*   Config cfg;
-
-    Setting &root = cfg.getRoot();
-    Setting &address = root.add(GEARBOY_TITLE, Setting::TypeGroup);*/
-/*
-    address.add("keypad_left", Setting::TypeString) = SDL_GetKeyName(kc_keypad_left);
-    address.add("keypad_right", Setting::TypeString) = SDL_GetKeyName(kc_keypad_right);
-    address.add("keypad_up", Setting::TypeString) = SDL_GetKeyName(kc_keypad_up);
-    address.add("keypad_down", Setting::TypeString) = SDL_GetKeyName(kc_keypad_down);
-    address.add("keypad_a", Setting::TypeString) = SDL_GetKeyName(kc_keypad_a);
-    address.add("keypad_b", Setting::TypeString) = SDL_GetKeyName(kc_keypad_b);
-    address.add("keypad_start", Setting::TypeString) = SDL_GetKeyName(kc_keypad_start);
-    address.add("keypad_select", Setting::TypeString) = SDL_GetKeyName(kc_keypad_select);
-
-    address.add("joystick_gamepad_a", Setting::TypeInt) = jg_a;
-    address.add("joystick_gamepad_b", Setting::TypeInt) = jg_b;
-    address.add("joystick_gamepad_start", Setting::TypeInt) = jg_start;
-    address.add("joystick_gamepad_select", Setting::TypeInt) = jg_select;
-    address.add("joystick_gamepad_x_axis", Setting::TypeInt) = jg_x_axis;
-    address.add("joystick_gamepad_y_axis", Setting::TypeInt) = jg_y_axis;
-    address.add("joystick_gamepad_x_axis_invert", Setting::TypeBoolean) = jg_x_axis_invert;
-    address.add("joystick_gamepad_y_axis_invert", Setting::TypeBoolean) = jg_y_axis_invert;
-
-    address.add("emulator_pause", Setting::TypeString) = SDL_GetKeyName(kc_emulator_pause);
-    address.add("emulator_quit", Setting::TypeString) = SDL_GetKeyName(kc_emulator_quit);
-*/
-    /*address.add("emulator_pal0_red", Setting::TypeInt) = dmg_palette[0].red;
-    address.add("emulator_pal0_green", Setting::TypeInt) = dmg_palette[0].green;
-    address.add("emulator_pal0_blue", Setting::TypeInt) = dmg_palette[0].blue;
-    address.add("emulator_pal1_red", Setting::TypeInt) = dmg_palette[1].red;
-    address.add("emulator_pal1_green", Setting::TypeInt) = dmg_palette[1].green;
-    address.add("emulator_pal1_blue", Setting::TypeInt) = dmg_palette[1].blue;
-    address.add("emulator_pal2_red", Setting::TypeInt) = dmg_palette[2].red;
-    address.add("emulator_pal2_green", Setting::TypeInt) = dmg_palette[2].green;
-    address.add("emulator_pal2_blue", Setting::TypeInt) = dmg_palette[2].blue;
-    address.add("emulator_pal3_red", Setting::TypeInt) = dmg_palette[3].red;
-    address.add("emulator_pal3_green", Setting::TypeInt) = dmg_palette[3].green;
-    address.add("emulator_pal3_blue", Setting::TypeInt) = dmg_palette[3].blue;
-
-    try
-    {
-        cfg.writeFile(output_file);
-    }
-    catch(const FileIOException &fioex)
-    {
-        Log("I/O error while writing file: %s", output_file);
-    }*/
 
     SDL_GameControllerClose(game_pad);
 
@@ -603,6 +521,40 @@ void end(void)
     SafeDelete(theSoundQueue);
     SafeDelete(theGearboyCore);
     SDL_Quit();
+}
+
+void emu_dmg_predefined_palette(int palette)
+{
+    GB_Color* predefined;
+
+    switch (palette)
+    {
+        case 0:
+            predefined = original_palette;
+            break;
+        case 1:
+            predefined = sharp_palette;
+            break;
+        case 2:
+            predefined = bw_palette;
+            break;
+        case 3:
+            predefined = autumn_palette;
+            break;
+        case 4:
+            predefined = soft_palette;
+            break;
+        case 5:
+            predefined = slime_palette;
+            break;
+        default:
+            predefined = NULL;
+    }
+
+    if (predefined)
+    {
+        theGearboyCore->SetDMGPalette(predefined[0], predefined[1], predefined[2], predefined[3]);
+    }
 }
 
 int main(int argc, char** argv)
@@ -644,25 +596,7 @@ int main(int argc, char** argv)
 
     if (theGearboyCore->LoadROM(load_filename, forcedmg))
     {
-        GB_Color color1;
-        GB_Color color2;
-        GB_Color color3;
-        GB_Color color4;
-
-        color1.red = dmg_palette[0].red;
-        color1.green = dmg_palette[0].green;
-        color1.blue = dmg_palette[0].blue;
-        color2.red = dmg_palette[1].red;
-        color2.green = dmg_palette[1].green;
-        color2.blue = dmg_palette[1].blue;
-        color3.red = dmg_palette[2].red;
-        color3.green = dmg_palette[2].green;
-        color3.blue = dmg_palette[2].blue;
-        color4.red = dmg_palette[3].red;
-        color4.green = dmg_palette[3].green;
-        color4.blue = dmg_palette[3].blue;
-
-        theGearboyCore->SetDMGPalette(color1, color2, color3, color4);
+        emu_dmg_predefined_palette(2);
         theGearboyCore->LoadRam();
 
         while (running)
